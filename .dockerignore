@@ -1,0 +1,17 @@
+.venv/
+venv/
+env/
+
+.git/
+.github/
+
+mlruns/
+outputs/
+artifacts/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+diabetes.ipynb
