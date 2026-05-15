@@ -1,0 +1,44 @@
+name: Train and test
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "src/**"
+      - "diabetes.csv"
+      - "requirements.txt"
+  pull_request:
+    branches:
+     - main
+     - master
+    paths:
+      - "src/**"
+      - "diabetes.csv"
+      - "requirements.txt"
+
+   workflow_dispatch:
+
+jobs:
+  train-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+    
+      - name: install py
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          caches: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run training script
+        run: |
+          python src/train.py
