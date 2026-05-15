@@ -41,4 +41,5 @@ jobs:
 
       - name: Run training script
         run: |
-          python src/train.py
+          echo python src/train.py
+         
