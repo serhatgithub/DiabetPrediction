@@ -25,7 +25,7 @@ def main():
 
     test_size = 0.25
     random_state = 50
-    max_iter = 2000
+    max_iter = 2500
     model_name = "LogisticRegression"
 
     X_train, X_test, y_train, y_test = train_test_split(
