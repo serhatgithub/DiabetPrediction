@@ -11,6 +11,7 @@ on:
       - "src/**"
       - "diabetes.csv"
       - "requirements.txt"
+      - ".github/workflows/build-image.yaml"
 
   workflow_dispatch:
 

@@ -23,7 +23,7 @@ def main():
     X = df.drop(columns=[TARGET_COLUMN])
     y = df[TARGET_COLUMN]
 
-    test_size = 0.2
+    test_size = 0.25
     random_state = 42
     max_iter = 1000
     model_name = "LogisticRegression"
