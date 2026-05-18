@@ -5,7 +5,9 @@ import os
 import joblib
 import mlflow
 import pandas as pd
+import mlflow.sklearn
 
+from mlflow.models import infer_signature
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
@@ -25,9 +27,9 @@ def main():
     X = df.drop(columns=[TARGET_COLUMN])
     y = df[TARGET_COLUMN]
 
-    test_size = 0.25
-    random_state = 50
-    max_iter = 2500
+    test_size = 0.20
+    random_state = 48
+    max_iter = 2100
     model_name = "LogisticRegression"
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -77,11 +79,15 @@ def main():
     if image_tag:
         params["image_tag"] = image_tag
 
-    artifacts_dir = Path("artifacts")
-    artifacts_dir.mkdir(exist_ok=True)
+    signature = infer_signature(X_test, predictions)
 
-    model_path = artifacts_dir / "diabetes_model.pkl"
-    joblib.dump(model, model_path)
+    mlflow.sklearn.log_model(
+    	sk_model=model,
+    	name="model",
+    	signature=signature,
+    	input_example=X_test.head(3),
+    	registered_model_name="diabetes-prediction-model",
+   )
 
     mlflow.set_experiment(EXPERIMENT_NAME)
 
