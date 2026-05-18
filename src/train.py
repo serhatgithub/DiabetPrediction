@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
+import os
 
+import joblib
 import mlflow
 import pandas as pd
 
@@ -66,13 +68,34 @@ def main():
         "test_rows": len(X_test),
     }
 
+    git_commit = os.getenv("GIT_COMMIT")
+    image_tag = os.getenv("IMAGE_TAG")
+
+    if git_commit:
+        params["git_commit"] = git_commit
+
+    if image_tag:
+        params["image_tag"] = image_tag
+
+    artifacts_dir = Path("artifacts")
+    artifacts_dir.mkdir(exist_ok=True)
+
+    model_path = artifacts_dir / "diabetes_model.pkl"
+    joblib.dump(model, model_path)
+
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     with mlflow.start_run(run_name="logistic_regression_diabetes") as run:
         mlflow.log_params(params)
         mlflow.log_metrics(metrics)
 
+        mlflow.log_artifact(
+            local_path=str(model_path),
+            artifact_path="model",
+        )
+
         print("MLflow run_id:", run.info.run_id)
+        print("Model artifact:", str(model_path))
         print(json.dumps({**params, **metrics}, indent=2))
 
 
