@@ -2,10 +2,9 @@ from pathlib import Path
 import json
 import os
 
-import joblib
 import mlflow
-import pandas as pd
 import mlflow.sklearn
+import pandas as pd
 
 from mlflow.models import infer_signature
 from sklearn.impute import SimpleImputer
@@ -19,6 +18,7 @@ from sklearn.preprocessing import StandardScaler
 DATA_PATH = Path("diabetes.csv")
 TARGET_COLUMN = "Outcome"
 EXPERIMENT_NAME = "Diabetes_Prediction"
+REGISTERED_MODEL_NAME = "diabetes-prediction-model"
 
 
 def main():
@@ -27,9 +27,9 @@ def main():
     X = df.drop(columns=[TARGET_COLUMN])
     y = df[TARGET_COLUMN]
 
-    test_size = 0.20
-    random_state = 48
-    max_iter = 2100
+    test_size = 0.25
+    random_state = 50
+    max_iter = 2500
     model_name = "LogisticRegression"
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -79,29 +79,29 @@ def main():
     if image_tag:
         params["image_tag"] = image_tag
 
-    signature = infer_signature(X_test, predictions)
-
-    mlflow.sklearn.log_model(
-    	sk_model=model,
-    	name="model",
-    	signature=signature,
-    	input_example=X_test.head(3),
-    	registered_model_name="diabetes-prediction-model",
-   )
-
     mlflow.set_experiment(EXPERIMENT_NAME)
+
+    # Integer schema warning'ini azaltmak için signature input'unu float gösteriyoruz.
+    # Model zaten numeric değerlerle çalışıyor.
+    X_test_for_signature = X_test.astype(float)
+    input_example = X_test_for_signature.head(3)
+    signature = infer_signature(X_test_for_signature, predictions)
 
     with mlflow.start_run(run_name="logistic_regression_diabetes") as run:
         mlflow.log_params(params)
         mlflow.log_metrics(metrics)
 
-        mlflow.log_artifact(
-            local_path=str(model_path),
-            artifact_path="model",
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            name="model",
+            signature=signature,
+            input_example=input_example,
+            registered_model_name=REGISTERED_MODEL_NAME,
         )
 
         print("MLflow run_id:", run.info.run_id)
-        print("Model artifact:", str(model_path))
+        print("MLflow model artifact path: model")
+        print("Registered model name:", REGISTERED_MODEL_NAME)
         print(json.dumps({**params, **metrics}, indent=2))
 
 
