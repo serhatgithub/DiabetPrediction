@@ -28,8 +28,8 @@ def main():
     y = df[TARGET_COLUMN]
 
     test_size = 0.25
-    random_state = 50
-    max_iter = 2500
+    random_state = 48
+    max_iter = 1800
     model_name = "LogisticRegression"
 
     X_train, X_test, y_train, y_test = train_test_split(
