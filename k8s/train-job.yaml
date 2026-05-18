@@ -13,7 +13,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: diabetes-training
-          image: serhatsdocker/diabetprediction-training
+          image: serhatsdocker/diabetprediction-training:latest
           imagePullPolicy: Always
           env:
             - name: MLFLOW_TRACKING_URI
