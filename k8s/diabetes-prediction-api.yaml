@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: diabetes-prediction-api
+  namespace: diabet
+  labels:
+    app: diabetes-prediction-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: diabetes-prediction-api
+  template:
+    metadata:
+      labels:
+        app: diabetes-prediction-api
+    spec:
+      containers:
+        - name: diabetes-prediction-api
+          image: 192.168.1.121:5000/diabetes-prediction-api:local
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: KSERVE_PREDICT_URL
+              value: "http://diabetes-predictor-predictor.diabet.svc.cluster.local/v1/models/diabetes-predictor:predict"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: diabetes-prediction-api
+  namespace: diabet
+spec:
+  type: ClusterIP
+  selector:
+    app: diabetes-prediction-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
