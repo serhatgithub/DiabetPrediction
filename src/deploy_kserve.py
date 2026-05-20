@@ -21,7 +21,7 @@ def load_kubernetes_config():
         print("Loaded Kubernetes in-cluster config.")
     except config.ConfigException:
         config.load_kube_config()
-        print("Loaded local kubeconfig.")
+        print("Loaded local kubeconfig")
 
 
 def mlflow_source_to_s3_uri(source: str) -> str:
