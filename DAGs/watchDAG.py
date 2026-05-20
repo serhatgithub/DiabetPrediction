@@ -40,6 +40,14 @@ VARIABLE_KEY = "diabetes_last_training_image_marker"
 
 MLFLOW_TRACKING_URI = "http://mlflow-tracking.mlflow.svc.cluster.local"
 
+MODEL_NAME = "diabetes-prediction-model"
+MODEL_ALIAS = "best"
+PROMOTION_METRIC = "f1"
+
+KSERVE_NAMESPACE = "diabet"
+INFERENCE_SERVICE_NAME = "diabetes-predictor"
+MLFLOW_ARTIFACT_BUCKET = "mlflow"
+
 
 def get_variable(key, default=None):
     try:
@@ -94,7 +102,7 @@ def check_new_image(**context):
         return False
 
     context["ti"].xcom_push(key="latest_marker", value=latest_marker)
-    print("Yeni image bulundu. Training Job çalışacak.")
+    print("Yeni image bulundu. Training pipeline çalışacak.")
     return True
 
 
@@ -117,7 +125,7 @@ with DAG(
     schedule="*/5 * * * *",
     catchup=False,
     max_active_runs=1,
-    tags=["ml", "diabetes", "dockerhub", "training"],
+    tags=["ml", "diabetes", "dockerhub", "training", "kserve"],
 ) as dag:
 
     check_new_image_task = ShortCircuitOperator(
@@ -138,12 +146,122 @@ with DAG(
         labels={
             "app": "diabetes-training",
             "created-by": "airflow",
+            "pipeline-step": "train",
         },
         env_vars=[
             k8s.V1EnvVar(
                 name="MLFLOW_TRACKING_URI",
                 value=MLFLOW_TRACKING_URI,
+            ),
+            k8s.V1EnvVar(
+                name="MODEL_NAME",
+                value=MODEL_NAME,
+            ),
+            k8s.V1EnvVar(
+                name="IMAGE_TAG",
+                value=IMAGE,
+            ),
+        ],
+        env_from=[
+            k8s.V1EnvFromSource(
+                secret_ref=k8s.V1SecretEnvSource(
+                    name="mlflow-credentials"
+                )
             )
+        ],
+    )
+
+    promote_best_model = KubernetesJobOperator(
+        task_id="promote_best_model",
+        name="diabetes-promote-{{ ts_nodash | lower }}",
+        namespace=NAMESPACE,
+        image=IMAGE,
+        image_pull_policy="Always",
+        in_cluster=True,
+        backoff_limit=1,
+        wait_until_job_complete=True,
+        get_logs=False,
+        cmds=["/bin/sh", "-c"],
+        arguments=[
+            "/opt/venv/bin/python src/promote_model.py"
+        ],
+        labels={
+            "app": "diabetes-training",
+            "created-by": "airflow",
+            "pipeline-step": "promote",
+        },
+        env_vars=[
+            k8s.V1EnvVar(
+                name="MLFLOW_TRACKING_URI",
+                value=MLFLOW_TRACKING_URI,
+            ),
+            k8s.V1EnvVar(
+                name="MODEL_NAME",
+                value=MODEL_NAME,
+            ),
+            k8s.V1EnvVar(
+                name="MODEL_ALIAS",
+                value=MODEL_ALIAS,
+            ),
+            k8s.V1EnvVar(
+                name="PROMOTION_METRIC",
+                value=PROMOTION_METRIC,
+            ),
+        ],
+        env_from=[
+            k8s.V1EnvFromSource(
+                secret_ref=k8s.V1SecretEnvSource(
+                    name="mlflow-credentials"
+                )
+            )
+        ],
+    )
+
+    deploy_best_model_to_kserve = KubernetesJobOperator(
+        task_id="deploy_best_model_to_kserve",
+        name="diabetes-deploy-kserve-{{ ts_nodash | lower }}",
+        namespace=NAMESPACE,
+        image=IMAGE,
+        image_pull_policy="Always",
+        in_cluster=True,
+        service_account_name="diabetes-kserve-deployer",
+        backoff_limit=1,
+        wait_until_job_complete=True,
+        get_logs=False,
+        cmds=["/bin/sh", "-c"],
+        arguments=[
+            "/opt/venv/bin/python src/deploy_kserve.py"
+        ],
+        labels={
+            "app": "diabetes-training",
+            "created-by": "airflow",
+            "pipeline-step": "deploy-kserve",
+        },
+        env_vars=[
+            k8s.V1EnvVar(
+                name="MLFLOW_TRACKING_URI",
+                value=MLFLOW_TRACKING_URI,
+            ),
+            k8s.V1EnvVar(
+                name="MODEL_NAME",
+                value=MODEL_NAME,
+            ),
+            k8s.V1EnvVar(
+                name="MODEL_ALIAS",
+                value=MODEL_ALIAS,
+            ),
+            k8s.V1EnvVar(
+                name="MLFLOW_ARTIFACT_BUCKET",
+                value=MLFLOW_ARTIFACT_BUCKET,
+            ),
+            k8s.V1EnvVar(
+                name="KSERVE_NAMESPACE",
+                value=KSERVE_NAMESPACE,
+            ),
+            k8s.V1EnvVar(
+                name="INFERENCE_SERVICE_NAME",
+                value=INFERENCE_SERVICE_NAME,
+            ),
         ],
         env_from=[
             k8s.V1EnvFromSource(
@@ -159,4 +277,10 @@ with DAG(
         python_callable=mark_image_processed,
     )
 
-    check_new_image_task >> run_training_job >> mark_processed
+    (
+        check_new_image_task
+        >> run_training_job
+        >> promote_best_model
+        >> deploy_best_model_to_kserve
+        >> mark_processed
+    )

@@ -3,3 +3,4 @@ scikit-learn
 mlflow-skinny
 joblib
 boto3
+kubernetes

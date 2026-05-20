@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-kserve-reader-bootstrap
+  namespace: mlflow
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: mc
+          image: bitnamilegacy/minio-client:latest
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-minio
+                  key: root-user
+
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-minio
+                  key: root-password
+
+            - name: KSERVE_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kserve-minio-reader
+                  key: AWS_ACCESS_KEY_ID
+
+            - name: KSERVE_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kserve-minio-reader
+                  key: AWS_SECRET_ACCESS_KEY
+
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for MinIO to be ready..."
+
+              for i in $(seq 1 60); do
+                if mc alias set local http://mlflow-minio.mlflow.svc.cluster.local:80 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; then
+                  echo "MinIO is ready."
+                  break
+                fi
+
+                echo "MinIO is not ready yet. Retry $i/60..."
+                sleep 5
+
+                if [ "$i" -eq 60 ]; then
+                  echo "MinIO did not become ready in time."
+                  exit 1
+                fi
+              done
+
+              echo "Creating or checking readonly policy..."
+
+              mc admin policy info local kserve-mlflow-readonly-v2 >/dev/null 2>&1 || \
+                mc admin policy create local kserve-mlflow-readonly-v2 /policy/kserve-mlflow-readonly.json
+
+              echo "Creating or checking kserve-reader user..."
+
+              mc admin user info local "$KSERVE_MINIO_ACCESS_KEY" >/dev/null 2>&1 || \
+                mc admin user add local "$KSERVE_MINIO_ACCESS_KEY" "$KSERVE_MINIO_SECRET_KEY"
+
+              echo "Attaching readonly policy to kserve-reader..."
+
+              mc admin policy attach local kserve-mlflow-readonly-v2 --user "$KSERVE_MINIO_ACCESS_KEY"
+
+              echo "KServe MinIO read-only user is ready."
+
+          volumeMounts:
+            - name: policy
+              mountPath: /policy
+              readOnly: true
+
+      volumes:
+        - name: policy
+          configMap:
+            name: kserve-mlflow-readonly-policy

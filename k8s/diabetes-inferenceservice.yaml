@@ -1,0 +1,22 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: diabetes-predictor
+  namespace: diabet
+spec:
+  predictor:
+    serviceAccountName: kserve-minio-sa
+
+    model:
+      modelFormat:
+        name: sklearn
+
+      storageUri: "s3://mlflow/4/models/m-5c079ddc66704bcea9a98ac530441445/artifacts"
+
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
